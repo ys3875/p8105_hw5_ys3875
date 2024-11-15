@@ -116,7 +116,7 @@ No, the sample average mean tend to be higher than the true mean because of sele
 
 ##Q3.
 ```{r}
-homicide_data <- read_csv("homicide-data.csv")
+homicide_data <- read_csv("data/homicide-data.csv")
 
 homicides_summary <- homicide_data |>
   mutate(city_state = paste(city, state, sep = ", ")) |>
