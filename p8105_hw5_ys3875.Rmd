@@ -1,0 +1,135 @@
+---
+title: "hw5"
+author: "Yanhao Shen"
+date: "2024-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(knitr)
+library(tidyverse)
+library(broom)
+library(purrr)
+```
+
+##Q2.
+```{r}
+n <- 30
+sigma <- 5 
+mu_values <- 0:6
+alpha <- 0.05
+index <- 1
+
+output <- vector("list", length=length(mu_values)*5000)
+simulation_results <- data.frame()
+set.seed(1)
+for (mu in mu_values){
+  for (i in 1:5000){
+    data <- rnorm(n,mean = mu,sd=sigma)
+    test_results <- t.test(data,mu=0) |> broom::tidy()
+    
+    output[[index]] <- data.frame(
+      TrueMean = mu,
+      EstimatedMean = test_results$estimate,
+      pvalue =test_results$p.value
+    )
+    index <- index +1
+  }
+}
+
+simulation_results <- bind_rows(output)
+
+power_results <- simulation_results |>
+  group_by(TrueMean) |>
+  summarize(
+    Power = mean(pvalue < alpha)
+  )
+
+mean_estimates <- simulation_results |>
+  group_by(TrueMean) |>
+  summarize(
+    AvgEstimate_All = mean(EstimatedMean),
+    AvgEstimate_Rejected = mean(EstimatedMean[pvalue < alpha])
+  )
+
+ggplot(power_results, aes(x = TrueMean, y = Power)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = mu_values) +
+  labs(title = "Power of the One-Sample t-test vs. True Mean", x = "True Mean", y = "Power") +
+  theme_minimal()
+
+ggplot(mean_estimates, aes(x = TrueMean)) +
+  geom_line(aes(y = AvgEstimate_All, color = "All Samples")) +
+  geom_point(aes(y = AvgEstimate_All, color = "All Samples")) +
+  geom_line(aes(y = AvgEstimate_Rejected, color = "Rejected Samples")) +
+  geom_point(aes(y = AvgEstimate_Rejected, color = "Rejected Samples")) +
+  scale_color_manual(name = "Estimates", values = c("All Samples" = "blue", "Rejected Samples" = "red")) +
+  scale_x_continuous(breaks = mu_values) +
+  labs(title = "Average Estimated Mean vs. True Mean", x = "True Mean", y = "Average Estimated Mean") +
+  theme_minimal()
+```
+
+The power increases with the true mean, even a small effect size can increase th epower to reject the null hypothysis when it's false.\
+No, the sample average mean tend to be higher than the true mean because of selection bias. When the null is rejected,it means the estimated mean was sufficiently far from 0 to produce a significant p-value.
+
+
+##Q3.
+```{r}
+homicide_data <- read_csv("homicide-data.csv")
+
+homicides_summary <- homicide_data |>
+  mutate(city_state = paste(city, state, sep = ", ")) |>
+  group_by(city_state) |>
+  summarize(
+    total_homicides = n(),
+    unsolved_homicides = sum(disposition %in% c("Closed without arrest", "Open/No arrest"))
+  )
+
+baltimore_data <- homicides_summary |>
+  filter(city_state == "Baltimore, MD")
+
+baltimore_test <- prop.test(
+  x = baltimore_data$unsolved_homicides, 
+  n = baltimore_data$total_homicides,
+  conf.level = 0.95
+)
+
+baltimore_estimates <- baltimore_test |>
+  broom::tidy() |>
+  select(estimate, conf.low, conf.high)
+
+city_estimates <- homicides_summary |>
+  mutate(
+    test_results = map2(unsolved_homicides, total_homicides, ~prop.test(.x, .y, conf.level = 0.95)),
+    tidy_results = map(test_results, tidy)
+  ) |>
+  unnest(tidy_results) |>
+  select(city_state, estimate, conf.low, conf.high) |>
+  mutate(
+    proportion_unsolved = estimate,
+    ci_lower = conf.low,
+    ci_upper = conf.high
+  ) |>
+  select(city_state, proportion_unsolved, ci_lower, ci_upper)
+
+city_estimates_sorted <- city_estimates |>
+  arrange(desc(proportion_unsolved))
+
+ggplot(city_estimates_sorted, aes(x = reorder(city_state, proportion_unsolved), y = proportion_unsolved)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0.2) +
+  coord_flip() +
+  labs(
+    title = "Proportion of Unsolved Homicides in U.S. Cities",
+    x = "City",
+    y = "Estimated Proportion of Unsolved Homicides"
+  ) +
+  theme_minimal()
+
+```
+
