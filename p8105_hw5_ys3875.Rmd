@@ -16,6 +16,42 @@ library(broom)
 library(purrr)
 ```
 
+##Q1.
+```{r}
+has_duplicate_birthday <- function(n) {
+  birthdays <- sample(1:365, size = n, replace = TRUE)
+  any(duplicated(birthdays))
+}
+
+set.seed(2)
+group_sizes <- 2:50
+num_simulations <- 10000
+
+sim_results <- map(group_sizes, function(n) {
+  results <- replicate(num_simulations, has_duplicate_birthday(n))
+  mean(results)
+})
+
+results_df <- data.frame(
+  GroupSize = group_sizes,
+  Probability = unlist(sim_results)
+)
+
+ggplot(data = results_df, aes(x = GroupSize, y = Probability)) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Probability of At Least Two People Sharing a Birthday",
+    x = "Number of People (Group Size)",
+    y = "Probability"
+  ) +
+  theme_minimal()
+```
+
+We can see from the plot that the probability approaches to 100% if there are 50 people.
+
+
 ##Q2.
 ```{r}
 n <- 30
